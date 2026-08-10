@@ -11,6 +11,7 @@ Repositorio para las entregas y ejercicios del curso.
 ## Autor
 
 Nombre: Brayan Alexis Arango Orrego
+Correo: brayanarango327604@correo.itm.edu.co
 
 ## Cómo ejecutar
 
