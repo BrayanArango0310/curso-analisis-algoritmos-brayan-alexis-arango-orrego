@@ -93,3 +93,117 @@ Medición de `insertion_sort` sobre los tres escenarios, siete tamaños de entra
 **Cuál se aproxima al caso promedio.** El **A**, aleatorio. En n = 6.400 midió 10.243.431 comparaciones, y el valor esperado bajo el supuesto de permutaciones equiprobables es n(n−1)/4 = 10.238.400 — una diferencia de apenas 0,05 %, coherente con el ruido de una sola muestra aleatoria. En la gráfica, la curva de A queda casi exactamente a la mitad entre C y el eje, que es justo lo que predice la teoría: la mitad del trabajo del peor caso.
 
 **Contraste con la predicción de 3.1.** El experimento no contradijo la predicción: los tres escenarios quedaron en el orden esperado (C peor, B mejor, A en la mitad), y los tres conteos caen sobre las fórmulas teóricas correspondientes. Lo que si me sorprendió fue la magnitud de la diferencia entre B y los otros dos: esperaba que B fuera claramente el mejor, pero no que en la gráfica quedara prácticamente invisible frente a A y C. Vale aclarar que B sigue siendo cuadrático, no lineal: de n = 3.200 a n = 6.400 sus comparaciones se multiplicaron por 2,56, más que el factor 2 de un crecimiento lineal — solo que con una constante mucho más pequeña que la de A o C.
+
+## Parte 4 — Complejidad de merge sort e insertion sort: cálculo y validación
+
+Código de esta parte: [parte4_complejidad.py](parte4_complejidad.py), con `merge_sort` e `insertion_sort` definidos en [algoritmos.py](algoritmos.py).
+
+### 4.1 — Cálculo teórico
+
+**Planteamiento de la recurrencia de merge sort**, siguiendo la implementación de `merge_sort` en `algoritmos.py`:
+
+```
+T(n) = 2·T(n/2) + Θ(n)      para n > 1
+T(1) = Θ(1)
+```
+
+- **2**: es el número de subproblemas. Cada llamada corta la lista en dos mitades y se llama recursivamente sobre cada una (`merge_sort(lista[:medio])` y `merge_sort(lista[medio:])`).
+- **n/2**: es el tamaño de cada subproblema, porque el corte es exactamente por la mitad.
+- **Θ(n)**: es el costo de lo que no es recursivo — las dos copias que produce el slicing y la mezcla en `_mezclar`, que recorre las dos mitades con dos índices que solo avanzan, haciendo como máximo n−1 comparaciones y construyendo una lista de n elementos.
+- **T(1) = Θ(1)**: caso base — una lista de un solo elemento ya está ordenada, la función retorna de inmediato sin comparar nada.
+
+**Resolución por árbol de recursión.** Llamo cn al costo del término no recursivo en cada nivel.
+
+```
+Nivel 0:                         T(n)                              costo: c·n
+
+Nivel 1:                T(n/2)          T(n/2)                     costo: 2·c(n/2)      = c·n
+
+Nivel 2:           T(n/4)  T(n/4)   T(n/4)  T(n/4)                 costo: 4·c(n/4)      = c·n
+
+  ...                                                                     ...
+
+Nivel k:            2^k subproblemas, cada uno de tamaño n/2^k      costo: 2^k·c(n/2^k)  = c·n
+
+  ...                                                                     ...
+
+Nivel log2(n):      n subproblemas de tamaño 1                     costo: n·c(1)        = Θ(n)
+```
+
+- **Costo por nivel**: en el nivel k hay 2^k subproblemas de tamaño n/2^k, así que el costo de ese nivel es 2^k · c·(n/2^k) = c·n — el mismo en todos los niveles, porque lo que se gana en tamaño de subproblema se pierde en cantidad de subproblemas.
+- **Número de niveles**: el tamaño en el nivel k es n/2^k; se llega a las hojas cuando n/2^k = 1, es decir k = log₂n. Contando desde el nivel 0, hay log₂n + 1 niveles.
+- **Costo total**: T(n) = c·n·(log₂n + 1) = c·n·log₂n + c·n. El término dominante es n·log n, así que T(n) = Θ(n log n).
+
+**Verificación por el método maestro**, con a = 2, b = 2, f(n) = Θ(n): n^(log_b a) = n^(log₂2) = n¹ = n. Como f(n) = Θ(n) = Θ(n^(log_b a)), se cumple la condición del **caso 2** del método maestro, que concluye T(n) = Θ(n^(log_b a) · log n) = Θ(n log n). Coincide con el resultado del árbol.
+
+**Cota de insertion sort, línea a línea.** Sobre el código de `insertion_sort` en `algoritmos.py`. Llamo n al tamaño de la lista; para cada iteración i (de 1 a n−1), c_i es el número de comparaciones entre elementos que hace esa iteración, con 1 ≤ c_i ≤ i.
+
+| Línea | Instrucción | Costo | Veces que se ejecuta |
+|---|---|---|---|
+| 1 | `lista = datos.copy()` | c₁ | 1 |
+| 2 | `comparaciones = 0` | c₂ | 1 |
+| 3 | `for i in range(1, len(lista)):` | c₃ | n |
+| 4 | `clave = lista[i]` | c₄ | n − 1 |
+| 5 | `j = i - 1` | c₅ | n − 1 |
+| 6 | `while j >= 0:` | c₆ | Σ (c_i + 1) |
+| 7 | `comparaciones += 1` | c₇ | Σ c_i |
+| 8 | `if lista[j] < clave:` | c₈ | Σ c_i |
+| 9-10 | mover elemento y decrementar j | c₉ | Σ (c_i − [rompe antes de mover]) |
+| 11 | `lista[j + 1] = clave` | c₁₁ | n − 1 |
+| 12 | `return lista, comparaciones` | c₁₂ | 1 |
+
+Las sumatorias van de i = 1 a n − 1. Agrupando lo que no depende de la forma de la entrada en constantes A y B, el costo total queda dominado por Σc_i, el total de comparaciones entre elementos:
+
+```
+T(n) = A·n + B + (c7 + c8)·Σ c_i
+```
+
+- **Mejor caso** (lista ya de mayor a menor): cada elemento nuevo se compara una sola vez con su vecino izquierdo y se detiene ahí, así que c_i = 1 para toda iteración. Σc_i = n − 1, y T(n) queda como un polinomio de grado 1: **Θ(n)**. Lo comprobé pasándole a `insertion_sort` una lista de 100 elementos ya ordenada de mayor a menor: devolvió exactamente 99 comparaciones.
+- **Peor caso** (lista de menor a mayor): cada clave debe recorrer todo lo ya ordenado, c_i = i. Σc_i = n(n−1)/2, término dominante n²/2: **Θ(n²)**. Coincide con lo medido en el escenario C (ver 3.2): exactamente n(n−1)/2.
+- **Caso promedio** (permutaciones equiprobables): cada clave recorre en promedio la mitad de lo ya ordenado, c_i ≈ i/2. Σc_i ≈ n(n−1)/4, sigue siendo un polinomio de grado 2: **Θ(n²)**, con la mitad de la constante del peor caso. Coincide con lo medido en el escenario A.
+
+**Tabla de complejidades esperadas:**
+
+| Algoritmo | Mejor caso | Caso promedio | Peor caso |
+|---|---|---|---|
+| Insertion sort | Θ(n) | Θ(n²) | O(n²) |
+| Merge sort | Θ(n log n) | Θ(n log n) | Θ(n log n) |
+
+Merge sort tiene la misma cota en las tres columnas porque parte la lista por la mitad sin mirar los valores que contiene: la forma del árbol de recursión no cambia según la entrada. Insertion sort decide cuánto trabaja según lo que encuentra en cada paso, y por eso su costo se mueve entre Θ(n) y Θ(n²) dependiendo de qué tan ordenada llegue la entrada.
+
+### 4.2 — Validación experimental
+
+Los dos algoritmos sobre el escenario A (aleatorio), mismos tamaños de la Parte 3, mediana de tres corridas:
+
+| n | Insertion sort — tiempo (ms) | Merge sort — tiempo (ms) |
+|---|---|---|
+| 100 | 0,13 | 0,11 |
+| 200 | 0,49 | 0,23 |
+| 400 | 1,89 | 0,51 |
+| 800 | 11,97 | 1,08 |
+| 1.600 | 35,05 | 2,35 |
+| 3.200 | 138,35 | 4,98 |
+| 6.400 | 583,82 | 10,69 |
+
+![Tiempo de ejecución de insertion sort y merge sort frente al tamaño de entrada, escenario A](graficas/parte4_tiempo.png)
+
+**Cuál algoritmo es mejor para Tamiza, leído en la gráfica.** Merge sort. Su curva se mantiene casi plana pegada al eje horizontal, mientras que la de insertion sort se despega con claridad a partir de n = 800 y se dispara. En n = 6.400, insertion sort tarda 583,82 ms contra 10,69 ms de merge sort: **54,6 veces más lento en el mismo punto**.
+
+Lo que hace cada curva se ve mejor en los saltos al duplicar n: de 3.200 a 6.400, el tiempo de insertion sort se multiplica por 4,22 (138,35 → 583,82), mientras que el de merge sort se multiplica por apenas 2,15 (4,98 → 10,69).
+
+**Coincide con lo calculado en 4.1.** El factor ≈4 al duplicar n es la firma de Θ(n²): si T(n) ≈ k·n², entonces T(2n) = 4·k·n². El factor ≈2,15 de merge sort es la firma de Θ(n log n): el crecimiento teórico esperado al duplicar n es 2 × log₂(6.400)/log₂(3.200) = 2 × 1,086 ≈ 2,17, casi idéntico al 2,15 medido.
+
+**Qué pasa en tamaños pequeños.** Dentro del rango pedido (n = 100 a 6.400), merge sort ya es más rápido en todos los puntos medidos, incluido n = 100 (0,11 ms contra 0,13 ms). Pero medí también tamaños más pequeños, fuera de este rango, y ahí sí aparece el cruce que se espera teóricamente: en n = 20, insertion sort tardó 0,012 ms contra 0,029 ms de merge sort, y en n = 50, 0,060 ms contra 0,076 ms — insertion sort es más rápido en ambos casos. El cruce ocurre en algún punto entre n = 50 y n = 100, cuando el costo fijo de las llamadas recursivas y la creación de listas nuevas de merge sort deja de compensarse con su ventaja asintótica. Para el n real de Tamiza (1.200.000), estamos muy por encima de ese cruce, así que no aplica.
+
+### 4.3 — Concepto técnico a la Secretaría de Salud
+
+**Para:** equipo de ingeniería de la Secretaría de Salud
+**Asunto:** algoritmo de ordenamiento del proceso nocturno de Tamiza
+
+Mi recomendación es reemplazar insertion sort por **merge sort** como única implementación del proceso nocturno. El criterio con el que resolví el compromiso de "una sola implementación, sin importar el canal de entrada" es elegir el algoritmo por su comportamiento en el peor caso, no por el escenario más frecuente hoy: merge sort divide la lista por la mitad sin mirar los valores, así que su costo es Θ(n log n) sin importar si el lote llega aleatorio, casi ordenado o invertido. Insertion sort no ofrece esa garantía — en mis propias mediciones (n = 6.400), el mismo algoritmo tarda 0,74 ms con el lote casi ordenado y 1.166,72 ms con el lote invertido: casi 1.600 veces de diferencia decidida enteramente por cómo llegó el archivo ese día, algo que el equipo no controla.
+
+**Estimación para la ventana de cuatro horas.** Lo siguiente es una **estimación**, no una medición: el tamaño más grande que probé fue n = 6.400, y de ahí extrapolo usando la forma de cada curva, no una regla de tres. De 6.400 a 1.200.000 el tamaño se multiplica por 187,5. Insertion sort es Θ(n²), así que su tiempo se multiplica aproximadamente por 187,5² ≈ 35.156: los 583,82 ms medidos en el escenario aleatorio se convierten en unas **5 horas y 42 minutos**, y los 1.166,72 ms del escenario invertido en unas **11 horas y 24 minutos** — ambos por fuera de la ventana, coherente con las tres madrugadas en que la lista quedó incompleta. Merge sort es Θ(n log n), así que su factor de crecimiento es 187,5 × (log₂1.200.000 / log₂6.400) ≈ 187,5 × 1,60 ≈ 300: los 10,69 ms medidos se convierten en apenas unos **3 segundos**, muy por debajo del límite.
+
+**Sobre la propuesta de comprar el servidor del doble de velocidad.** Un servidor del doble de velocidad divide el tiempo entre dos, en el mejor de los casos, pero la brecha que hay que cerrar es de 54,6 veces — el dato que medí en n = 6.400 sobre el escenario aleatorio (gráfica `parte4_tiempo.png`: 583,82 ms de insertion sort contra 10,69 ms de merge sort). Con la máquina nueva, la estimación del proceso actual bajaría de 5 h 42 min a unas 2 h 51 min en el escenario típico —entraría en la ventana por ahora— pero seguiría sin caber en el escenario de orden inverso (11 h 24 min → 5 h 42 min, todavía por fuera). Y ese alivio se agota apenas el lote vuelva a crecer, porque el trabajo sube con el cuadrado del tamaño y el hardware solo aporta un factor fijo. Cambiar de algoritmo no tiene costo de infraestructura y deja margen para varios años de crecimiento del programa; comprar hardware más rápido pospone el problema sin resolverlo.
+
+**Una consideración distinta del tiempo.** Merge sort necesita memoria adicional porque crea listas nuevas en cada nivel de la recursión. Lo medí con `tracemalloc` sobre n = 6.400: el pico de memoria adicional fue de unos 50 KB para insertion sort (que ordena en el mismo arreglo) contra unos 205 KB para merge sort — unas 4 veces más, aunque en términos absolutos sigue siendo un costo pequeño frente a las horas de CPU que ahorra. También vale la pena anotar que si el flujo de reproceso cambia (por ejemplo, si dejan de reenviar la lista del día anterior como base), el escenario B deja de ser "casi ordenado" y el argumento de que insertion sort "funciona bien casi siempre" se cae todavía más rápido; merge sort no depende de que ese supuesto se mantenga.
