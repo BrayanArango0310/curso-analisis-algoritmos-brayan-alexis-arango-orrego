@@ -1,76 +1,82 @@
 # Laboratorio evaluativo 01 — Fundamentos, complejidad y recurrencias
 
-**Nombre:** Brayan Alexis Arango Orrego
-**Curso:** Análisis de Algoritmos
-**Caso:** Plataforma Tamiza — Secretaría de Salud departamental
+**Estudiante:** Brayan Alexis Arango Orrego — Análisis de Algoritmos, 2026-2
 
-Todo el ordenamiento de este laboratorio se hace de mayor a menor índice de riesgo, que es el orden en que Tamiza necesita la lista de llamadas del día. Los tres generadores de escenarios, los dos algoritmos y el análisis de los casos usan ese mismo criterio de forma consistente.
+> Convención usada en todo el informe: la lista final va en orden **descendente de índice de riesgo** (primero el paciente más grave). Generadores, algoritmos y conclusiones respetan esa misma regla.
 
 ## Cómo reproducir el experimento
 
-Desde la raíz del repositorio, con el entorno virtual activado:
+1. Crear y activar el entorno (una sola vez, en la raíz del repositorio):
 
 ```bash
 python -m venv venv
-source venv/bin/activate        # en Windows: venv\Scripts\activate
+source venv/Scripts/activate    # Git Bash en Windows
+# source venv/bin/activate      # Linux o macOS
 pip install -r requirements.txt
 ```
 
-Ya con el entorno activo, parado en la carpeta de este laboratorio:
+2. Ejecutar cada parte:
 
 ```bash
 cd laboratorios/lab1-fundamentos-complejidad-recurrencias
-python parte3_casos.py         # tabla de la Parte 3 y sus dos gráficas
-python parte4_complejidad.py   # tabla de la Parte 4 y su gráfica
+python parte3_casos.py          # Parte 3: imprime la tabla y crea 2 gráficas
+python parte4_complejidad.py    # Parte 4: imprime la tabla y crea 1 gráfica
 ```
 
-Cada script imprime en consola las mismas cifras que aparecen en las tablas de este informe y escribe sus imágenes en `graficas/`. Los generadores usan una semilla fija (42), así que el conteo de comparaciones se repite en cualquier máquina con la misma versión de Python; los tiempos sí cambian unos milisegundos entre corridas y entre equipos, porque dependen del hardware y de qué más esté corriendo en ese momento.
-
-Cada punto de las tablas y gráficas de este informe es la mediana de tres corridas, tal como lo hace `parte3_casos.py` y `parte4_complejidad.py` (función `medir`). El cronómetro (`time.perf_counter()`) encierra únicamente la llamada al algoritmo: el lote se construye antes de arrancarlo.
+Notas de medición: los generadores usan semilla 42, así que las comparaciones se repiten con la misma versión de Python. La medición con `time.perf_counter()` envuelve solo la llamada al algoritmo, y cada tiempo reportado es la mediana de 3 repeticiones para suavizar el ruido del sistema operativo. Los milisegundos cambian de un equipo a otro; la forma de las curvas no.
 
 ## Parte 1 — Analizar el algoritmo antes de comprar hardware
 
-Un algoritmo es correcto cuando, para cualquier entrada válida, entrega la salida que pide la especificación. En Tamiza eso significa que la lista de salida tiene los mismos 1.200.000 registros que entraron y queda ordenada de mayor a menor índice de riesgo, sin importar en qué orden hayan llegado. Insertion sort cumple eso desde hace ocho años: nunca se ha reportado una lista mal ordenada.
+Tamiza tiene hoy dos propiedades que conviene no confundir.
 
-La eficiencia es otra cosa: es si el algoritmo entrega esa salida correcta dentro del recurso disponible, que en este caso es tiempo de CPU del servidor nocturno entre las 2:00 a. m. y las 6:00 a. m. Esa ventana de cuatro horas es la restricción concreta que el sistema está incumpliendo, y es la razón por la que tres veces en las últimas semanas el centro de contacto trabajó con una lista parcial. La corrección se verifica mirando la salida; el cumplimiento de la ventana se verifica cronometrando la ejecución. Por eso lo primero no implica lo segundo: el algoritmo puede seguir dando la respuesta exacta y entregarla a las diez de la mañana, cuando el centro de contacto ya lleva cuatro horas llamando con datos incompletos.
+**Es correcto.** Un algoritmo de ordenamiento es correcto si, para cualquier lote que reciba, devuelve esos mismos registros acomodados según el criterio pedido. Insertion sort lo logra: en ocho años no se ha encontrado una lista de Tamiza con registros perdidos o fuera de orden.
 
-Duplicar la velocidad del servidor no resuelve el problema de fondo porque actúa sobre la constante del algoritmo, no sobre su crecimiento. Cuando la plataforma se escribió, el lote era de unos 20.000 registros; hoy son 1.200.000, sesenta veces más. Como insertion sort hace un número de comparaciones del orden de n², multiplicar los datos por 60 multiplica el trabajo por cerca de 3.600 veces. Un servidor del doble de velocidad divide el tiempo entre dos: un factor 2 contra un crecimiento acumulado de 3.600. Y ese alivio se agota solo: si el programa suma más municipios y el lote pasa a, por ejemplo, 1.700.000 registros (un 40 % más), el trabajo casi se duplica otra vez y la ventana vuelve a romperse, esta vez con el contrato del servidor ya firmado.
+**No es viable.** Viable quiere decir que el resultado correcto llega cuando todavía sirve, y en Tamiza eso tiene hora fija: el proceso empieza a las 2 de la mañana y la línea de llamadas abre a las 6. Esa ventana de cuatro horas es la restricción que se está violando, y ya dejó tres jornadas con una lista a medias. Que la salida sea correcta no dice nada sobre cuánto tarda en producirse: son propiedades que se verifican por separado, una revisando el resultado y la otra con un reloj.
 
-Algo parecido me pasó a mí como usuario de la plataforma de SURA, mi EPS. Intenté descargar mi historia clínica completa desde el portal, acumulada en unos 9 años como paciente — entre consultas, resultados de laboratorio y fórmulas, calculo que son del orden de 150 a 250 registros, aunque no tengo la cifra exacta. La página se quedó cargando y nunca volvió a responder: no hubo un mensaje de error, simplemente dejó de reaccionar y tocó recargarla. No sé qué hace el backend con esa consulta, pero el síntoma es el mismo que Tamiza: en algún punto el proceso que arma ese reporte incumplió el límite de tiempo de respuesta que el navegador o el propio servidor tolera antes de cortar la conexión. El dato no era gigante para estándares de una empresa, pero fue suficiente para que algo pensado para historiales cortos dejara de responder con uno más largo.
+**Por qué duplicar la velocidad no alcanza.** El problema no apareció porque la máquina se volviera lenta, sino porque el lote creció: de unos 20.000 registros en la versión original a 1.200.000 hoy, 60 veces más. El trabajo de insertion sort es proporcional a n², así que 60 veces más datos equivalen a unas 3.600 veces más trabajo, y un procesador dos veces más rápido solo descuenta un factor 2 de esa cuenta. Mis mediciones muestran el mismo patrón: cada vez que dupliqué n, el tiempo se multiplicó por casi 4 (de 184,97 ms a 723,74 ms entre 3.200 y 6.400 registros, escenario A). El hardware cambia la escala del eje, no la pendiente de la curva.
+
+**Un caso propio.** Como afiliado a SURA intenté descargar desde el portal mi historia clínica completa: cerca de 9 años de consultas, laboratorios y fórmulas, que estimo en unos 150 a 250 documentos (no conozco la cifra exacta). La página quedó cargando y nunca respondió; tuve que recargarla sin obtener el archivo. Supongo que la consulta funciona bien con historias cortas, pero con la mía superó el tiempo máximo que la sesión web espera una respuesta antes de cortarse. La restricción incumplida fue la latencia máxima de la petición, no la exactitud de los datos.
 
 ## Parte 2 — Responsabilidad ambiental y ética de la implementación
 
-**Dimensión ambiental.** El tiempo de ejecución del proceso nocturno es tiempo de CPU trabajando al máximo, y esa CPU consume energía mientras lo hace. Con mis propias mediciones (ver Parte 4), extrapolar insertion sort a 1.200.000 registros da unas 5 horas y 42 minutos de procesador en el escenario aleatorio; merge sort, en cambio, se estima en apenas unos 3 segundos. Esa diferencia de horas de CPU activa se traduce directamente en consumo eléctrico. Vista una sola madrugada, la diferencia entre los dos algoritmos puede parecer un detalle; el problema es que el proceso corre *todas* las madrugadas, y la plataforma lleva ocho años en producción. Un algoritmo cuadrático no gasta energía una vez: la gasta cada noche, de forma acumulada, y ese gasto crece con el cuadrado del tamaño del lote cada vez que el programa se amplía a más municipios. Comprar el servidor del doble de velocidad no ayuda en esta dimensión: una máquina más rápida generalmente consume más vatios por hora, y el trabajo que hay que hacer sigue siendo el mismo.
+**Dimensión ambiental.** Cada minuto que el servidor pasa ordenando es un minuto de procesador a plena carga, y eso es electricidad. Con la extrapolación de la Parte 4, insertion sort necesitaría unas 5,7 horas de CPU por madrugada con un lote aleatorio de 1.200.000 registros, y merge sort unos 3 segundos. El proceso no ocurre una vez: corre 365 noches al año. Sumado, son unas 2.080 horas de procesador al año con insertion sort frente a unos 20 minutos con merge sort, y eso se ha repetido durante ocho años seguidos. Hay además un agravante: en las noches en que el proceso no termina a tiempo, toda esa energía se gastó en una lista que no se pudo usar como se debía.
 
-**Dimensión ética.** La primera forma concreta de daño es la que recae sobre el paciente. Cuando el proceso no termina a tiempo y el centro de contacto trabaja con una lista parcial o desordenada, un paciente de alto riesgo puede quedar detrás de pacientes de menor riesgo en la cola de llamadas, o directamente no aparecer ese día. **El costo de ese error lo asume primero el paciente**: un retraso en su valoración médica que, en un programa de tamizaje cardiovascular, puede no ser recuperable. El paciente no tomó ninguna decisión técnica y no tiene forma de saber que el algoritmo que ordena su prioridad clínica no alcanzó a correr completo esa madrugada.
+**Dimensión ética.** Veo dos perjuicios concretos:
 
-La segunda forma de daño recae sobre el operador del centro de contacto: recibe una lista sin garantía de que esté bien ordenada y no tiene manera de saberlo desde su puesto de trabajo. Llama de arriba hacia abajo confiando en que el orden refleja el riesgo real. Si más adelante se revisa por qué se contactó tarde a un paciente grave, lo que queda registrado es el nombre del operador junto a cada llamada, no la causa técnica de fondo. Aun así, sostengo que el costo mayor sigue siendo del paciente: el operador cumplió su trabajo con la información que le dieron, mientras que el paciente sufre la consecuencia clínica directa sin haber tenido ninguna forma de participar o de saber que algo estaba mal.
+1. *Un paciente de alto riesgo no recibe la llamada a tiempo.* Si la lista sale incompleta o sin ordenar, alguien con un índice cercano a 1000 puede quedar al final de la cola o fuera de la jornada. El costo lo asume **el paciente**: su valoración cardiovascular se retrasa sin que haya tenido forma de enterarse ni de reclamar.
+2. *Los cupos de valoración se los llevan pacientes de menor riesgo.* Las citas disponibles cada día son limitadas. Si la lista va desordenada, pacientes de riesgo bajo ocupan esos cupos y el de riesgo alto, cuando por fin lo llaman, encuentra la agenda llena. De nuevo el costo recae primero sobre **el paciente** más grave; la Secretaría también pierde, porque paga consultas que no se asignaron según la prioridad clínica que el programa promete.
 
-La responsabilidad de que esto pase es de quien decidió mantener el algoritmo sin revisarlo a pesar de conocer que la ventana ya se estaba incumpliendo: el equipo técnico que sostiene la plataforma y la Secretaría que aprueba (o pospone) los cambios.
+En los dos casos el costo cae sobre quien no tomó la decisión, mientras la responsabilidad recae en quienes sí la toman: el equipo técnico que mantiene el proceso y la Secretaría que decide si se corrige.
 
-Hay una tensión propia de este caso que va más allá del tiempo: el orden de la lista decide a quién se llama primero. Eso convierte al criterio de ordenamiento en una decisión con consecuencias clínicas, no solo en un detalle de implementación. Cuando dos pacientes tienen el mismo índice de riesgo, algo tiene que desempatar entre ellos, y ese "algo" queda definido por cómo está escrito el algoritmo, casi siempre sin que nadie lo haya discutido explícitamente. Esto impone una obligación adicional sobre la corrección del ordenamiento: que sea **estable y trazable** — que ante índices iguales el resultado sea siempre el mismo, siguiendo un criterio declarado (por ejemplo, cuál registro lleva más tiempo pendiente), y que quede registro de con qué índice y en qué posición entró cada paciente al proceso. Un algoritmo que ordena "bien" en el sentido técnico pero desempata de forma arbitraria cumple la especificación y aun así reparte la atención médica de forma injusta.
+**El orden define la prioridad de llamada.** Por eso cualquier falla del ordenamiento se vuelve una falla de priorización clínica, y de ahí salen dos obligaciones que van más allá del tiempo. La primera es comprobar cada noche que la salida es correcta: que tenga el mismo número de registros que entraron y que cada índice sea mayor o igual que el siguiente, un chequeo lineal y barato. La segunda es no disfrazar un fallo: si el proceso no termina, el sistema debe avisarlo de forma explícita en lugar de entregar una lista parcial que parece válida. Quien llama sabiendo que la lista está incompleta puede empezar por los casos críticos conocidos; quien no lo sabe, no.
 
 ## Parte 3 — Peor caso, mejor caso y caso promedio, demostrados en Python
 
-Código de esta parte: [parte3_casos.py](parte3_casos.py). Los algoritmos instrumentados están en [algoritmos.py](algoritmos.py) y los tres generadores de escenarios en [datos.py](datos.py).
+[Código de la Parte 3](parte3_casos.py) · funciones en [algoritmos.py](algoritmos.py) · generadores en [datos.py](datos.py)
 
 ### 3.1 — Explicación
 
-Los tres casos no son tres entradas puntuales: son tres formas de resumir el costo del algoritmo sobre el conjunto de *todas* las entradas posibles de un mismo tamaño fijo n. Se fija n, se considera el conjunto de todas las listas de n índices de riesgo distintos que se le pueden dar al algoritmo, y sobre ese conjunto se toma:
+Fijo un tamaño n y llamo **E(n)** al conjunto de todas las listas posibles de n índices de riesgo distintos, es decir, todas sus permutaciones. Si C(x) es el número de comparaciones que hace el algoritmo con la entrada x:
 
-- **Peor caso**: el máximo del número de comparaciones entre todas las entradas de tamaño n. Es la entrada específica que más le cuesta al algoritmo.
-- **Mejor caso**: el mínimo del número de comparaciones sobre ese mismo conjunto de entradas de tamaño n.
-- **Caso promedio**: el promedio del número de comparaciones sobre ese conjunto, asumiendo que todas las permutaciones de los n índices son igual de probables (es el supuesto usual, y el que uso aquí).
+- **Peor caso:** máx { C(x) : x ∈ E(n) }, la entrada de ese tamaño que más comparaciones exige.
+- **Mejor caso:** mín { C(x) : x ∈ E(n) }, la que menos exige.
+- **Caso promedio:** el valor esperado de C(x) cuando x se escoge en E(n) con todas las permutaciones igual de probables.
 
-Decir "el caso malo" sin aclarar sobre qué conjunto de entradas de qué tamaño se toma el máximo no dice nada, porque el costo de un algoritmo no es un número fijo: es una función que depende tanto del tamaño como de la forma de la entrada.
+Los tres se comparan siempre con n fijo: no tiene sentido llamar "peor" a una entrada comparándola con otra de distinto tamaño.
 
-**¿Cuál usaría para decidir si Tamiza entra en producción?** El peor caso. La ventana de cuatro horas no es una meta que se cumple en promedio: es un límite que se cumple o se incumple cada madrugada, y el equipo de Tamiza no controla cómo llega el lote — el canal de origen puede cambiar sin aviso (una migración, un reproceso distinto, un laboratorio que empieza a subir los datos de otra forma). Diseñar para el promedio significa que el proceso cabe "casi siempre", y ese "casi" es precisamente la madrugada en que el centro de contacto abre con una lista incompleta. Si el peor caso cabe en la ventana, cualquier entrada cabe.
+**Para aprobar el paso a producción me basaría en el peor caso**, porque la ventana es un límite duro que se evalúa todas las noches, y Tamiza no escoge su entrada: el canal que la produce cambia sin previo aviso (una nueva migración desde el sistema legado traería otra vez datos invertidos). Un promedio que cabe en cuatro horas no impide que una noche concreta se pase; una cota de peor caso que cabe sí lo impide.
 
-**Predicción antes de medir.** Ordenando de mayor a menor, espero que el **escenario C sea el peor caso**: llega exactamente al revés de lo que Tamiza necesita, así que cada registro nuevo debe recorrer toda la porción ya ordenada antes de encontrar su lugar. Espero que el **escenario B sea el mejor de los tres** (aunque no el mejor caso teórico absoluto, que sería la lista completa ya ordenada): el 98 % ya viene en el orden final, y solo el 2 % restante tiene trabajo por hacer. Y espero que el **escenario A quede en la mitad**, como aproximación al caso promedio, por ser una permutación aleatoria de los índices — que es justamente la situación que ese promedio modela.
+**Predicción:**
+
+| Escenario | Lo que espero para insertion sort | Razón |
+|---|---|---|
+| C — orden inverso | Peor caso | Cada registro nuevo es mayor que todos los anteriores y debe desplazarse hasta el comienzo de la parte ya ordenada. |
+| B — casi ordenado | El mejor de los tres | El 98 % inicial ya está en su sitio y cuesta una comparación por registro; solo el 2 % final hace trabajo real. |
+| A — aleatorio | Intermedio, cercano al caso promedio | Es una permutación al azar, que es justo lo que modela el promedio. |
 
 ### 3.2 — Demostración experimental
 
-Medición de `insertion_sort` sobre los tres escenarios, siete tamaños de entrada, mediana de tres corridas:
+Valores que imprime `parte3_casos.py` (tiempo = mediana de 3 repeticiones):
 
 | n | A — comparaciones | A — tiempo (ms) | B — comparaciones | B — tiempo (ms) | C — comparaciones | C — tiempo (ms) |
 |---|---|---|---|---|---|---|
@@ -82,100 +88,106 @@ Medición de `insertion_sort` sobre los tres escenarios, siete tamaños de entra
 | 3.200 | 2.594.787 | 184,97 | 4.180 | 0,28 | 5.118.400 | 270,60 |
 | 6.400 | 10.243.431 | 723,74 | 10.700 | 0,74 | 20.476.800 | 1.166,72 |
 
-![Comparaciones de insertion sort frente al tamaño de entrada en los tres escenarios](graficas/parte3_comparaciones.png)
+![Gráfica: comparaciones de insertion sort según n, escenarios A, B y C](graficas/parte3_comparaciones.png)
 
-![Tiempo de ejecución de insertion sort frente al tamaño de entrada en los tres escenarios](graficas/parte3_tiempo.png)
+![Gráfica: milisegundos de insertion sort según n, escenarios A, B y C](graficas/parte3_tiempo.png)
 
-**Cuál escenario resultó el peor caso.** El **C**, orden inverso. Su curva queda por encima de las otras dos en ambas gráficas. En n = 6.400 hizo 20.476.800 comparaciones, y ese número coincide de forma exacta con la fórmula del peor caso teórico: n(n−1)/2 = 6.400 × 6.399 / 2 = 20.476.800. No es una aproximación — es el valor exacto, lo que confirma que el generador `generar_inverso` está produciendo, en efecto, el peor caso real del algoritmo.
+- **Peor caso: C.** Es la curva más alta en ambas gráficas. Su conteo en n = 6.400 es 20.476.800, igual a n(n−1)/2 para ese n: el generador inverso produce justo la entrada que obliga a mover cada registro hasta el principio.
+- **Mejor caso: B.** 10.700 comparaciones en n = 6.400, casi sobre el eje. El desglose cuadra con el código: el bloque ordenado aporta una comparación por elemento (6.271) y reacomodar los 128 registros finales entre ellos cuesta 4.426 (lo medí ordenando esa cola por separado). No baja al mínimo teórico de n − 1 = 6.399 porque la cola llega desordenada.
+- **Caso promedio: A.** 10.243.431 comparaciones contra las n(n−1)/4 = 10.238.400 esperadas para una permutación aleatoria, un 0,05 % de diferencia. En la gráfica, A queda más o menos a media altura de C.
 
-**Cuál resultó el mejor.** El **B**, casi ordenado. En la gráfica de comparaciones queda pegado al eje horizontal: en n = 6.400 hizo 10.700 comparaciones contra 20.476.800 del escenario C, casi 1.914 veces menos, y 0,74 ms contra 1.166,72 ms. No es el mejor caso teórico absoluto (que serían 6.399 comparaciones para una lista ya completamente ordenada), porque el 2 % final del lote (128 registros en n = 6.400) todavía se reordena entre sí — el primer 98 % solo aporta una comparación por elemento (unas 6.271), y el resto del conteo (unas 4.400) sale de reordenar esos 128 registros entre ellos, algo cercano a lo que predice un insertion sort de ese tamaño más pequeño sobre sí mismo.
-
-**Cuál se aproxima al caso promedio.** El **A**, aleatorio. En n = 6.400 midió 10.243.431 comparaciones, y el valor esperado bajo el supuesto de permutaciones equiprobables es n(n−1)/4 = 10.238.400 — una diferencia de apenas 0,05 %, coherente con el ruido de una sola muestra aleatoria. En la gráfica, la curva de A queda casi exactamente a la mitad entre C y el eje, que es justo lo que predice la teoría: la mitad del trabajo del peor caso.
-
-**Contraste con la predicción de 3.1.** El experimento no contradijo la predicción: los tres escenarios quedaron en el orden esperado (C peor, B mejor, A en la mitad), y los tres conteos caen sobre las fórmulas teóricas correspondientes. Lo que si me sorprendió fue la magnitud de la diferencia entre B y los otros dos: esperaba que B fuera claramente el mejor, pero no que en la gráfica quedara prácticamente invisible frente a A y C. Vale aclarar que B sigue siendo cuadrático, no lineal: de n = 3.200 a n = 6.400 sus comparaciones se multiplicaron por 2,56, más que el factor 2 de un crecimiento lineal — solo que con una constante mucho más pequeña que la de A o C.
+**Contraste con la predicción.** Se cumplió en los tres escenarios. Lo que subestimé fue la distancia de B: esperaba que fuera el mejor, pero no casi 1.900 veces por debajo de C. Hay un detalle que la escala lineal esconde: B tampoco crece de forma lineal. Al duplicar n de 3.200 a 6.400 sus comparaciones subieron 2,56 veces, porque la cola del 2 % crece con n y se ordena en tiempo cuadrático.
 
 ## Parte 4 — Complejidad de merge sort e insertion sort: cálculo y validación
 
-Código de esta parte: [parte4_complejidad.py](parte4_complejidad.py), con `merge_sort` e `insertion_sort` definidos en [algoritmos.py](algoritmos.py).
+[Código de la Parte 4](parte4_complejidad.py) · `merge_sort` e `insertion_sort` en [algoritmos.py](algoritmos.py)
 
 ### 4.1 — Cálculo teórico
 
-**Planteamiento de la recurrencia de merge sort**, siguiendo la implementación de `merge_sort` en `algoritmos.py`:
+**Recurrencia de merge sort**
 
 ```
-T(n) = 2·T(n/2) + Θ(n)      para n > 1
+T(n) = 2·T(n/2) + Θ(n),   n > 1
 T(1) = Θ(1)
 ```
 
-- **2**: es el número de subproblemas. Cada llamada corta la lista en dos mitades y se llama recursivamente sobre cada una (`merge_sort(lista[:medio])` y `merge_sort(lista[medio:])`).
-- **n/2**: es el tamaño de cada subproblema, porque el corte es exactamente por la mitad.
-- **Θ(n)**: es el costo de lo que no es recursivo — las dos copias que produce el slicing y la mezcla en `_mezclar`, que recorre las dos mitades con dos índices que solo avanzan, haciendo como máximo n−1 comparaciones y construyendo una lista de n elementos.
-- **T(1) = Θ(1)**: caso base — una lista de un solo elemento ya está ordenada, la función retorna de inmediato sin comparar nada.
+| Término | Qué representa en `merge_sort` |
+|---|---|
+| 2 | Dos llamadas recursivas: `merge_sort(lista[:medio])` y `merge_sort(lista[medio:])`. |
+| n/2 | Cada llamada recibe la mitad de los elementos (`medio = len(lista) // 2`). |
+| Θ(n) | Trabajo fuera de la recursión: los dos cortes copian n elementos y `_mezclar` hace a lo sumo n − 1 comparaciones y n `append`. |
+| T(1) | Una lista de 0 o 1 elementos se devuelve sin comparar. |
 
-**Resolución por árbol de recursión.** Llamo cn al costo del término no recursivo en cada nivel.
-
-```
-Nivel 0:                         T(n)                              costo: c·n
-
-Nivel 1:                T(n/2)          T(n/2)                     costo: 2·c(n/2)      = c·n
-
-Nivel 2:           T(n/4)  T(n/4)   T(n/4)  T(n/4)                 costo: 4·c(n/4)      = c·n
-
-  ...                                                                     ...
-
-Nivel k:            2^k subproblemas, cada uno de tamaño n/2^k      costo: 2^k·c(n/2^k)  = c·n
-
-  ...                                                                     ...
-
-Nivel log2(n):      n subproblemas de tamaño 1                     costo: n·c(1)        = Θ(n)
-```
-
-- **Costo por nivel**: en el nivel k hay 2^k subproblemas de tamaño n/2^k, así que el costo de ese nivel es 2^k · c·(n/2^k) = c·n — el mismo en todos los niveles, porque lo que se gana en tamaño de subproblema se pierde en cantidad de subproblemas.
-- **Número de niveles**: el tamaño en el nivel k es n/2^k; se llega a las hojas cuando n/2^k = 1, es decir k = log₂n. Contando desde el nivel 0, hay log₂n + 1 niveles.
-- **Costo total**: T(n) = c·n·(log₂n + 1) = c·n·log₂n + c·n. El término dominante es n·log n, así que T(n) = Θ(n log n).
-
-**Verificación por el método maestro**, con a = 2, b = 2, f(n) = Θ(n): n^(log_b a) = n^(log₂2) = n¹ = n. Como f(n) = Θ(n) = Θ(n^(log_b a)), se cumple la condición del **caso 2** del método maestro, que concluye T(n) = Θ(n^(log_b a) · log n) = Θ(n log n). Coincide con el resultado del árbol.
-
-**Cota de insertion sort, línea a línea.** Sobre el código de `insertion_sort` en `algoritmos.py`. Llamo n al tamaño de la lista; para cada iteración i (de 1 a n−1), c_i es el número de comparaciones entre elementos que hace esa iteración, con 1 ≤ c_i ≤ i.
-
-| Línea | Instrucción | Costo | Veces que se ejecuta |
-|---|---|---|---|
-| 1 | `lista = datos.copy()` | c₁ | 1 |
-| 2 | `comparaciones = 0` | c₂ | 1 |
-| 3 | `for i in range(1, len(lista)):` | c₃ | n |
-| 4 | `clave = lista[i]` | c₄ | n − 1 |
-| 5 | `j = i - 1` | c₅ | n − 1 |
-| 6 | `while j >= 0:` | c₆ | Σ (c_i + 1) |
-| 7 | `comparaciones += 1` | c₇ | Σ c_i |
-| 8 | `if lista[j] < clave:` | c₈ | Σ c_i |
-| 9-10 | mover elemento y decrementar j | c₉ | Σ (c_i − [rompe antes de mover]) |
-| 11 | `lista[j + 1] = clave` | c₁₁ | n − 1 |
-| 12 | `return lista, comparaciones` | c₁₂ | 1 |
-
-Las sumatorias van de i = 1 a n − 1. Agrupando lo que no depende de la forma de la entrada en constantes A y B, el costo total queda dominado por Σc_i, el total de comparaciones entre elementos:
+**Método elegido: árbol de recursión**, con c·n como costo no recursivo.
 
 ```
-T(n) = A·n + B + (c7 + c8)·Σ c_i
+                     c·n                       nivel 0:  1 nodo   × c·n    = c·n
+                  /       \
+             c·n/2         c·n/2               nivel 1:  2 nodos  × c·n/2  = c·n
+             /   \         /   \
+        c·n/4  c·n/4   c·n/4  c·n/4            nivel 2:  4 nodos  × c·n/4  = c·n
+          ...                                     ...
+    c   c   c   c   ...   c   c   c   c        nivel h:  n hojas  × c      = c·n
 ```
 
-- **Mejor caso** (lista ya de mayor a menor): cada elemento nuevo se compara una sola vez con su vecino izquierdo y se detiene ahí, así que c_i = 1 para toda iteración. Σc_i = n − 1, y T(n) queda como un polinomio de grado 1: **Θ(n)**. Lo comprobé pasándole a `insertion_sort` una lista de 100 elementos ya ordenada de mayor a menor: devolvió exactamente 99 comparaciones.
-- **Peor caso** (lista de menor a mayor): cada clave debe recorrer todo lo ya ordenado, c_i = i. Σc_i = n(n−1)/2, término dominante n²/2: **Θ(n²)**. Coincide con lo medido en el escenario C (ver 3.2): exactamente n(n−1)/2.
-- **Caso promedio** (permutaciones equiprobables): cada clave recorre en promedio la mitad de lo ya ordenado, c_i ≈ i/2. Σc_i ≈ n(n−1)/4, sigue siendo un polinomio de grado 2: **Θ(n²)**, con la mitad de la constante del peor caso. Coincide con lo medido en el escenario A.
+- En el nivel i hay 2^i nodos de tamaño n/2^i, así que ese nivel cuesta 2^i · c·n/2^i = c·n. Todos los niveles cuestan lo mismo.
+- Altura: los subproblemas llegan a tamaño 1 cuando n/2^h = 1, o sea h = log₂ n. Hay log₂ n + 1 niveles.
+- Total: T(n) = c·n·(log₂ n + 1) = c·n·log₂ n + c·n = **Θ(n log n)**.
 
-**Tabla de complejidades esperadas:**
+Contraste con el método maestro: a = 2, b = 2, f(n) = Θ(n) y n^(log₂ 2) = n; f(n) es del mismo orden que n^(log_b a), así que aplica el caso 2 y da Θ(n log n), igual que el árbol.
+
+**Cota de insertion sort, contando ejecuciones por línea** (código real de `algoritmos.py`):
+
+```
+ 1  lista = datos.copy()
+ 2  comparaciones = 0
+ 3  for i in range(1, len(lista)):
+ 4      clave = lista[i]
+ 5      j = i - 1
+ 6      while j >= 0:
+ 7          comparaciones += 1
+ 8          if lista[j] < clave:
+ 9              lista[j + 1] = lista[j]
+10              j -= 1
+11          else:
+12              break
+13      lista[j + 1] = clave
+14  return lista, comparaciones
+```
+
+Sea t_i el número de comparaciones de elementos en la iteración i (1 ≤ t_i ≤ i) y s_i a los desplazamientos (s_i ≤ t_i).
+
+| Líneas | Veces que se ejecutan |
+|---|---|
+| 1 | 1 (copia n elementos) |
+| 2, 14 | 1 |
+| 3 | n |
+| 4, 5, 13 | n − 1 |
+| 6 | a lo sumo Σ (t_i + 1) |
+| 7, 8 | Σ t_i |
+| 9, 10 | Σ s_i ≤ Σ t_i |
+| 11, 12 | a lo sumo n − 1 |
+
+Las sumas recorren i = 1, …, n − 1. Juntando constantes queda T(n) = k·Σ t_i + a·n + b: lo único que varía según cómo llegue la entrada es Σ t_i.
+
+- **Mejor caso** (entrada ya descendente): el primer `if` falla de inmediato, t_i = 1 y Σ t_i = n − 1, así que T(n) = **Θ(n)**. Lo comprobé pasando `list(range(100, 0, -1))`: devolvió 99 comparaciones.
+- **Peor caso** (entrada ascendente): cada clave se desplaza hasta la posición 0, t_i = i y Σ t_i = n(n−1)/2, así que T(n) = **Θ(n²)**. Coincide exactamente con el escenario C.
+- **Caso promedio** (permutaciones equiprobables): en esperanza t_i ≈ i/2 y Σ t_i ≈ n(n−1)/4, así que T(n) = **Θ(n²)**. Coincide con el escenario A (0,05 %).
+
+**Tabla de complejidades**
 
 | Algoritmo | Mejor caso | Caso promedio | Peor caso |
 |---|---|---|---|
-| Insertion sort | Θ(n) | Θ(n²) | O(n²) |
+| Insertion sort | Θ(n) | Θ(n²) | Θ(n²) |
 | Merge sort | Θ(n log n) | Θ(n log n) | Θ(n log n) |
 
-Merge sort tiene la misma cota en las tres columnas porque parte la lista por la mitad sin mirar los valores que contiene: la forma del árbol de recursión no cambia según la entrada. Insertion sort decide cuánto trabaja según lo que encuentra en cada paso, y por eso su costo se mueve entre Θ(n) y Θ(n²) dependiendo de qué tan ordenada llegue la entrada.
+Merge sort no cambia de columna porque su punto de corte depende solo de la longitud (`len(lista) // 2`), nunca del contenido: el árbol es idéntico para cualquier entrada del mismo tamaño.
 
 ### 4.2 — Validación experimental
 
-Los dos algoritmos sobre el escenario A (aleatorio), mismos tamaños de la Parte 3, mediana de tres corridas:
+Valores que imprime `parte4_complejidad.py` (escenario A, mediana de 3 repeticiones):
 
-| n | Insertion sort — tiempo (ms) | Merge sort — tiempo (ms) |
+| n | Insertion sort (ms) | Merge sort (ms) |
 |---|---|---|
 | 100 | 0,13 | 0,11 |
 | 200 | 0,49 | 0,23 |
@@ -185,25 +197,35 @@ Los dos algoritmos sobre el escenario A (aleatorio), mismos tamaños de la Parte
 | 3.200 | 138,35 | 4,98 |
 | 6.400 | 583,82 | 10,69 |
 
-![Tiempo de ejecución de insertion sort y merge sort frente al tamaño de entrada, escenario A](graficas/parte4_tiempo.png)
+![Gráfica: milisegundos según n, insertion sort frente a merge sort, escenario A](graficas/parte4_tiempo.png)
 
-**Cuál algoritmo es mejor para Tamiza, leído en la gráfica.** Merge sort. Su curva se mantiene casi plana pegada al eje horizontal, mientras que la de insertion sort se despega con claridad a partir de n = 800 y se dispara. En n = 6.400, insertion sort tarda 583,82 ms contra 10,69 ms de merge sort: **54,6 veces más lento en el mismo punto**.
-
-Lo que hace cada curva se ve mejor en los saltos al duplicar n: de 3.200 a 6.400, el tiempo de insertion sort se multiplica por 4,22 (138,35 → 583,82), mientras que el de merge sort se multiplica por apenas 2,15 (4,98 → 10,69).
-
-**Coincide con lo calculado en 4.1.** El factor ≈4 al duplicar n es la firma de Θ(n²): si T(n) ≈ k·n², entonces T(2n) = 4·k·n². El factor ≈2,15 de merge sort es la firma de Θ(n log n): el crecimiento teórico esperado al duplicar n es 2 × log₂(6.400)/log₂(3.200) = 2 × 1,086 ≈ 2,17, casi idéntico al 2,15 medido.
-
-**Qué pasa en tamaños pequeños.** Dentro del rango pedido (n = 100 a 6.400), merge sort ya es más rápido en todos los puntos medidos, incluido n = 100 (0,11 ms contra 0,13 ms). Pero medí también tamaños más pequeños, fuera de este rango, y ahí sí aparece el cruce que se espera teóricamente: en n = 20, insertion sort tardó 0,012 ms contra 0,029 ms de merge sort, y en n = 50, 0,060 ms contra 0,076 ms — insertion sort es más rápido en ambos casos. El cruce ocurre en algún punto entre n = 50 y n = 100, cuando el costo fijo de las llamadas recursivas y la creación de listas nuevas de merge sort deja de compensarse con su ventaja asintótica. Para el n real de Tamiza (1.200.000), estamos muy por encima de ese cruce, así que no aplica.
+- **Para Tamiza conviene merge sort.** En la gráfica, insertion sort se curva hacia arriba cada vez más rápido: pasa de 138,35 ms a 583,82 ms entre 3.200 y 6.400 registros (×4,22). Merge sort sube casi en línea recta y apenas se despega del eje: de 4,98 ms a 10,69 ms en el mismo tramo (×2,15). En n = 6.400 la brecha llega a 54,6 veces.
+- **Coincide con 4.1.** Duplicar n en un algoritmo Θ(n²) multiplica el tiempo por 4; en uno Θ(n log n) lo multiplica por 2·log(2n)/log(n), que para n = 3.200 da ≈ 2,17. Medí 4,22 y 2,15. El conteo de comparaciones, independiente del hardware, confirma lo mismo: con 6.400 registros insertion sort hace 10.243.431 y merge sort 72.940, unas 140 veces menos.
+- **Tamaños pequeños.** En el rango de la guía merge sort ya gana desde n = 100 (0,11 contra 0,13 ms), así que la gráfica no muestra cruce. Para ubicarlo medí aparte n = 20 y n = 50, y ahí insertion sort fue más rápido (0,012 contra 0,029 ms y 0,060 contra 0,076 ms). Cada llamada recursiva de merge sort crea listas y marcos de función nuevos, un costo fijo que en listas muy cortas pesa más que su ventaja asintótica. El cruce queda entre 50 y 100 elementos, muy lejos del 1.200.000 de Tamiza.
 
 ### 4.3 — Concepto técnico a la Secretaría de Salud
 
-**Para:** equipo de ingeniería de la Secretaría de Salud
-**Asunto:** algoritmo de ordenamiento del proceso nocturno de Tamiza
+**A:** Equipo de ingeniería — Secretaría de Salud departamental
+**Ref.:** Ordenamiento nocturno de la plataforma Tamiza y propuesta de cambio de servidor
 
-Mi recomendación es reemplazar insertion sort por **merge sort** como única implementación del proceso nocturno. El criterio con el que resolví el compromiso de "una sola implementación, sin importar el canal de entrada" es elegir el algoritmo por su comportamiento en el peor caso, no por el escenario más frecuente hoy: merge sort divide la lista por la mitad sin mirar los valores, así que su costo es Θ(n log n) sin importar si el lote llega aleatorio, casi ordenado o invertido. Insertion sort no ofrece esa garantía — en mis propias mediciones (n = 6.400), el mismo algoritmo tarda 0,74 ms con el lote casi ordenado y 1.166,72 ms con el lote invertido: casi 1.600 veces de diferencia decidida enteramente por cómo llegó el archivo ese día, algo que el equipo no controla.
+**Recomendación.** Implementar merge sort como único algoritmo de ordenamiento del proceso nocturno y no firmar, por ahora, la compra del servidor.
 
-**Estimación para la ventana de cuatro horas.** Lo siguiente es una **estimación**, no una medición: el tamaño más grande que probé fue n = 6.400, y de ahí extrapolo usando la forma de cada curva, no una regla de tres. De 6.400 a 1.200.000 el tamaño se multiplica por 187,5. Insertion sort es Θ(n²), así que su tiempo se multiplica aproximadamente por 187,5² ≈ 35.156: los 583,82 ms medidos en el escenario aleatorio se convierten en unas **5 horas y 42 minutos**, y los 1.166,72 ms del escenario invertido en unas **11 horas y 24 minutos** — ambos por fuera de la ventana, coherente con las tres madrugadas en que la lista quedó incompleta. Merge sort es Θ(n log n), así que su factor de crecimiento es 187,5 × (log₂1.200.000 / log₂6.400) ≈ 187,5 × 1,60 ≈ 300: los 10,69 ms medidos se convierten en apenas unos **3 segundos**, muy por debajo del límite.
+**Criterio.** Como el origen del lote puede variar de un día a otro y no conviene sostener una implementación por canal, el algoritmo debe elegirse por lo que garantiza en la peor entrada posible, no por cómo se comporta con la entrada de hoy. Merge sort corta la lista según su longitud y nunca según su contenido, así que su costo es Θ(n log n) en los tres escenarios. Insertion sort, en cambio, depende mucho del canal: en mis mediciones con n = 6.400 tardó 0,74 ms (lote casi ordenado) frente a 1.166,72 ms (lote invertido), según la tabla de la Parte 3. Una sola migración desde el sistema legado basta para pasar del mejor escenario al peor.
 
-**Sobre la propuesta de comprar el servidor del doble de velocidad.** Un servidor del doble de velocidad divide el tiempo entre dos, en el mejor de los casos, pero la brecha que hay que cerrar es de 54,6 veces — el dato que medí en n = 6.400 sobre el escenario aleatorio (gráfica `parte4_tiempo.png`: 583,82 ms de insertion sort contra 10,69 ms de merge sort). Con la máquina nueva, la estimación del proceso actual bajaría de 5 h 42 min a unas 2 h 51 min en el escenario típico —entraría en la ventana por ahora— pero seguiría sin caber en el escenario de orden inverso (11 h 24 min → 5 h 42 min, todavía por fuera). Y ese alivio se agota apenas el lote vuelva a crecer, porque el trabajo sube con el cuadrado del tamaño y el hardware solo aporta un factor fijo. Cambiar de algoritmo no tiene costo de infraestructura y deja margen para varios años de crecimiento del programa; comprar hardware más rápido pospone el problema sin resolverlo.
+**¿Cabe en cuatro horas?** Los valores de la tabla son **estimaciones extrapoladas**, no mediciones. El lote más grande que ejecuté fue de 6.400 registros y 1.200.000 es 187,5 veces más grande. No usé regla de tres sino el crecimiento de cada algoritmo: con Θ(n²) el tiempo escala por 187,5² ≈ 35.156 y con Θ(n log n) por 187,5 × log(1.200.000)/log(6.400) ≈ 300. Supongo el mismo equipo y que las curvas conservan su forma.
 
-**Una consideración distinta del tiempo.** Merge sort necesita memoria adicional porque crea listas nuevas en cada nivel de la recursión. Lo medí con `tracemalloc` sobre n = 6.400: el pico de memoria adicional fue de unos 50 KB para insertion sort (que ordena en el mismo arreglo) contra unos 205 KB para merge sort — unas 4 veces más, aunque en términos absolutos sigue siendo un costo pequeño frente a las horas de CPU que ahorra. También vale la pena anotar que si el flujo de reproceso cambia (por ejemplo, si dejan de reenviar la lista del día anterior como base), el escenario B deja de ser "casi ordenado" y el argumento de que insertion sort "funciona bien casi siempre" se cae todavía más rápido; merge sort no depende de que ese supuesto se mantenga.
+| Algoritmo | Escenario | Medido (n = 6.400) | Estimado (n = 1.200.000) | ¿Cabe en 4 h? |
+|---|---|---|---|---|
+| Insertion sort | A — aleatorio | 583,82 ms | ≈ 5 h 42 min | No |
+| Insertion sort | C — inverso | 1.166,72 ms | ≈ 11 h 24 min | No |
+| Merge sort | A — aleatorio | 10,69 ms | ≈ 3 s | Sí, con amplio margen |
+
+Esto explica las tres fallas recientes del proceso.
+
+**Sobre la compra del servidor.** Con n = 6.400 y el escenario A (gráfica `parte4_tiempo.png`), merge sort fue 54,6 veces más rápido que insertion sort. Comprar hardware aporta un factor 2; cambiar el algoritmo aporta un factor que ya vale 54 con lotes pequeños y crece con el tamaño. Con la máquina nueva, insertion sort bajaría a unas 2 h 51 min con un lote aleatorio, pero seguiría necesitando unas 5 h 42 min con uno invertido: la ventana seguiría fallando justo en el caso que no se controla. Y como el trabajo crece al cuadrado, cualquier ampliación del programa vuelve a consumir ese margen. El contrato atacaría el síntoma de este trimestre, no la causa.
+
+**Consideraciones distintas del tiempo.**
+
+- *Memoria:* merge sort necesita espacio auxiliar proporcional a n. Con `tracemalloc` medí en n = 6.400 un pico de unos 205 KB frente a unos 50 KB de insertion sort. Es un costo real, pero pequeño al lado de las horas de CPU.
+- *Mantenimiento:* la función propuesta tiene la misma firma que la actual en `algoritmos.py` (recibe la lista y devuelve la lista ordenada), así que el cambio queda aislado y no obliga a tocar el resto de la plataforma.
+- *Verificación:* conviene acompañar el cambio con un chequeo al final del proceso (cantidad de registros y orden descendente) y una alerta si no termina a tiempo, para que nadie en la línea de llamadas trabaje con una lista parcial sin saberlo.
