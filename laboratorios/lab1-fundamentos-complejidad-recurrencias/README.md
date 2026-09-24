@@ -49,3 +49,47 @@ La segunda forma de daño recae sobre el operador del centro de contacto: recibe
 La responsabilidad de que esto pase es de quien decidió mantener el algoritmo sin revisarlo a pesar de conocer que la ventana ya se estaba incumpliendo: el equipo técnico que sostiene la plataforma y la Secretaría que aprueba (o pospone) los cambios.
 
 Hay una tensión propia de este caso que va más allá del tiempo: el orden de la lista decide a quién se llama primero. Eso convierte al criterio de ordenamiento en una decisión con consecuencias clínicas, no solo en un detalle de implementación. Cuando dos pacientes tienen el mismo índice de riesgo, algo tiene que desempatar entre ellos, y ese "algo" queda definido por cómo está escrito el algoritmo, casi siempre sin que nadie lo haya discutido explícitamente. Esto impone una obligación adicional sobre la corrección del ordenamiento: que sea **estable y trazable** — que ante índices iguales el resultado sea siempre el mismo, siguiendo un criterio declarado (por ejemplo, cuál registro lleva más tiempo pendiente), y que quede registro de con qué índice y en qué posición entró cada paciente al proceso. Un algoritmo que ordena "bien" en el sentido técnico pero desempata de forma arbitraria cumple la especificación y aun así reparte la atención médica de forma injusta.
+
+## Parte 3 — Peor caso, mejor caso y caso promedio, demostrados en Python
+
+Código de esta parte: [parte3_casos.py](parte3_casos.py). Los algoritmos instrumentados están en [algoritmos.py](algoritmos.py) y los tres generadores de escenarios en [datos.py](datos.py).
+
+### 3.1 — Explicación
+
+Los tres casos no son tres entradas puntuales: son tres formas de resumir el costo del algoritmo sobre el conjunto de *todas* las entradas posibles de un mismo tamaño fijo n. Se fija n, se considera el conjunto de todas las listas de n índices de riesgo distintos que se le pueden dar al algoritmo, y sobre ese conjunto se toma:
+
+- **Peor caso**: el máximo del número de comparaciones entre todas las entradas de tamaño n. Es la entrada específica que más le cuesta al algoritmo.
+- **Mejor caso**: el mínimo del número de comparaciones sobre ese mismo conjunto de entradas de tamaño n.
+- **Caso promedio**: el promedio del número de comparaciones sobre ese conjunto, asumiendo que todas las permutaciones de los n índices son igual de probables (es el supuesto usual, y el que uso aquí).
+
+Decir "el caso malo" sin aclarar sobre qué conjunto de entradas de qué tamaño se toma el máximo no dice nada, porque el costo de un algoritmo no es un número fijo: es una función que depende tanto del tamaño como de la forma de la entrada.
+
+**¿Cuál usaría para decidir si Tamiza entra en producción?** El peor caso. La ventana de cuatro horas no es una meta que se cumple en promedio: es un límite que se cumple o se incumple cada madrugada, y el equipo de Tamiza no controla cómo llega el lote — el canal de origen puede cambiar sin aviso (una migración, un reproceso distinto, un laboratorio que empieza a subir los datos de otra forma). Diseñar para el promedio significa que el proceso cabe "casi siempre", y ese "casi" es precisamente la madrugada en que el centro de contacto abre con una lista incompleta. Si el peor caso cabe en la ventana, cualquier entrada cabe.
+
+**Predicción antes de medir.** Ordenando de mayor a menor, espero que el **escenario C sea el peor caso**: llega exactamente al revés de lo que Tamiza necesita, así que cada registro nuevo debe recorrer toda la porción ya ordenada antes de encontrar su lugar. Espero que el **escenario B sea el mejor de los tres** (aunque no el mejor caso teórico absoluto, que sería la lista completa ya ordenada): el 98 % ya viene en el orden final, y solo el 2 % restante tiene trabajo por hacer. Y espero que el **escenario A quede en la mitad**, como aproximación al caso promedio, por ser una permutación aleatoria de los índices — que es justamente la situación que ese promedio modela.
+
+### 3.2 — Demostración experimental
+
+Medición de `insertion_sort` sobre los tres escenarios, siete tamaños de entrada, mediana de tres corridas:
+
+| n | A — comparaciones | A — tiempo (ms) | B — comparaciones | B — tiempo (ms) | C — comparaciones | C — tiempo (ms) |
+|---|---|---|---|---|---|---|
+| 100 | 2.648 | 0,16 | 100 | 0,01 | 4.950 | 0,26 |
+| 200 | 10.534 | 0,54 | 202 | 0,01 | 19.900 | 0,99 |
+| 400 | 38.744 | 2,17 | 416 | 0,02 | 79.800 | 5,36 |
+| 800 | 159.945 | 12,64 | 864 | 0,06 | 319.600 | 17,32 |
+| 1.600 | 641.308 | 48,33 | 1.851 | 0,13 | 1.279.200 | 71,64 |
+| 3.200 | 2.594.787 | 184,97 | 4.180 | 0,28 | 5.118.400 | 270,60 |
+| 6.400 | 10.243.431 | 723,74 | 10.700 | 0,74 | 20.476.800 | 1.166,72 |
+
+![Comparaciones de insertion sort frente al tamaño de entrada en los tres escenarios](graficas/parte3_comparaciones.png)
+
+![Tiempo de ejecución de insertion sort frente al tamaño de entrada en los tres escenarios](graficas/parte3_tiempo.png)
+
+**Cuál escenario resultó el peor caso.** El **C**, orden inverso. Su curva queda por encima de las otras dos en ambas gráficas. En n = 6.400 hizo 20.476.800 comparaciones, y ese número coincide de forma exacta con la fórmula del peor caso teórico: n(n−1)/2 = 6.400 × 6.399 / 2 = 20.476.800. No es una aproximación — es el valor exacto, lo que confirma que el generador `generar_inverso` está produciendo, en efecto, el peor caso real del algoritmo.
+
+**Cuál resultó el mejor.** El **B**, casi ordenado. En la gráfica de comparaciones queda pegado al eje horizontal: en n = 6.400 hizo 10.700 comparaciones contra 20.476.800 del escenario C, casi 1.914 veces menos, y 0,74 ms contra 1.166,72 ms. No es el mejor caso teórico absoluto (que serían 6.399 comparaciones para una lista ya completamente ordenada), porque el 2 % final del lote (128 registros en n = 6.400) todavía se reordena entre sí — el primer 98 % solo aporta una comparación por elemento (unas 6.271), y el resto del conteo (unas 4.400) sale de reordenar esos 128 registros entre ellos, algo cercano a lo que predice un insertion sort de ese tamaño más pequeño sobre sí mismo.
+
+**Cuál se aproxima al caso promedio.** El **A**, aleatorio. En n = 6.400 midió 10.243.431 comparaciones, y el valor esperado bajo el supuesto de permutaciones equiprobables es n(n−1)/4 = 10.238.400 — una diferencia de apenas 0,05 %, coherente con el ruido de una sola muestra aleatoria. En la gráfica, la curva de A queda casi exactamente a la mitad entre C y el eje, que es justo lo que predice la teoría: la mitad del trabajo del peor caso.
+
+**Contraste con la predicción de 3.1.** El experimento no contradijo la predicción: los tres escenarios quedaron en el orden esperado (C peor, B mejor, A en la mitad), y los tres conteos caen sobre las fórmulas teóricas correspondientes. Lo que si me sorprendió fue la magnitud de la diferencia entre B y los otros dos: esperaba que B fuera claramente el mejor, pero no que en la gráfica quedara prácticamente invisible frente a A y C. Vale aclarar que B sigue siendo cuadrático, no lineal: de n = 3.200 a n = 6.400 sus comparaciones se multiplicaron por 2,56, más que el factor 2 de un crecimiento lineal — solo que con una constante mucho más pequeña que la de A o C.
