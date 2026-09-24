@@ -29,26 +29,26 @@ Notas de medición: los generadores usan semilla 42, así que las comparaciones 
 
 Tamiza tiene hoy dos propiedades que conviene no confundir.
 
-**Es correcto.** Un algoritmo de ordenamiento es correcto si, para cualquier lote que reciba, devuelve esos mismos registros acomodados según el criterio pedido. Insertion sort lo logra: en ocho años no se ha encontrado una lista de Tamiza con registros perdidos o fuera de orden.
+**Es correcto.** Un algoritmo de ordenamiento es correcto cuando recibe una lista y devuelve los mismos registros, pero organizados según el criterio solicitado. En este caso, insertion sort cumple con eso: durante los ocho años de uso de Tamiza no se ha encontrado una lista con registros perdidos o fuera de orden.
 
-**No es viable.** Viable quiere decir que el resultado correcto llega cuando todavía sirve, y en Tamiza eso tiene hora fija: el proceso empieza a las 2 de la mañana y la línea de llamadas abre a las 6. Esa ventana de cuatro horas es la restricción que se está violando, y ya dejó tres jornadas con una lista a medias. Que la salida sea correcta no dice nada sobre cuánto tarda en producirse: son propiedades que se verifican por separado, una revisando el resultado y la otra con un reloj.
+**No es viable.** En este caso no basta con que el resultado sea correcto, también tiene que estar listo a tiempo. El proceso empieza a las 2 de la mañana y la línea de llamadas abre a las 6, por lo que solo hay cuatro horas disponibles. Esa es la restricción que se está incumpliendo y ya ha provocado tres jornadas con la lista incompleta. La corrección y el tiempo de ejecución son aspectos diferentes: una revisa el resultado y la otra cuánto tarda en obtenerse.
 
-**Por qué duplicar la velocidad no alcanza.** El problema no apareció porque la máquina se volviera lenta, sino porque el lote creció: de unos 20.000 registros en la versión original a 1.200.000 hoy, 60 veces más. El trabajo de insertion sort es proporcional a n², así que 60 veces más datos equivalen a unas 3.600 veces más trabajo, y un procesador dos veces más rápido solo descuenta un factor 2 de esa cuenta. Mis mediciones muestran el mismo patrón: cada vez que dupliqué n, el tiempo se multiplicó por casi 4 (de 184,97 ms a 723,74 ms entre 3.200 y 6.400 registros, escenario A). El hardware cambia la escala del eje, no la pendiente de la curva.
+**Por qué duplicar la velocidad no alcanza.** El problema no se debe solamente a que el equipo sea lento. El lote pasó de unos 20.000 registros a 1.200.000, es decir, creció 60 veces. Como insertion sort tiene un crecimiento proporcional a n², eso representa unas 3.600 veces más trabajo. Un procesador que sea el doble de rápido solo reduciría ese tiempo a la mitad. Mis mediciones muestran el mismo comportamiento: al duplicar n, el tiempo aumenta casi cuatro veces. Por ejemplo, en el escenario A pasó de 184,97 ms a 723,74 ms entre 3.200 y 6.400 registros. Por eso, cambiar solamente el hardware no soluciona el problema de fondo.
 
-**Un caso propio.** Como afiliado a SURA intenté descargar desde el portal mi historia clínica completa: cerca de 9 años de consultas, laboratorios y fórmulas, que estimo en unos 150 a 250 documentos (no conozco la cifra exacta). La página quedó cargando y nunca respondió; tuve que recargarla sin obtener el archivo. Supongo que la consulta funciona bien con historias cortas, pero con la mía superó el tiempo máximo que la sesión web espera una respuesta antes de cortarse. La restricción incumplida fue la latencia máxima de la petición, no la exactitud de los datos.
+**Un caso propio.** Como afiliado a SURA, intenté descargar desde el portal mi historia clínica completa. Son cerca de 9 años de consultas, laboratorios y fórmulas, que calculo que pueden ser entre 150 y 250 documentos, aunque no conozco la cantidad exacta. La página se quedó cargando y no terminó de responder, así que tuve que recargarla y no pude obtener el archivo. Mi suposición es que la consulta funciona bien para historias más pequeñas, pero en mi caso pudo superar el tiempo máximo de espera de la sesión web. En este ejemplo, el problema fue el tiempo de respuesta y no la exactitud de los datos.
 
 ## Parte 2 — Responsabilidad ambiental y ética de la implementación
 
-**Dimensión ambiental.** Cada minuto que el servidor pasa ordenando es un minuto de procesador a plena carga, y eso es electricidad. Con la extrapolación de la Parte 4, insertion sort necesitaría unas 5,7 horas de CPU por madrugada con un lote aleatorio de 1.200.000 registros, y merge sort unos 3 segundos. El proceso no ocurre una vez: corre 365 noches al año. Sumado, son unas 2.080 horas de procesador al año con insertion sort frente a unos 20 minutos con merge sort, y eso se ha repetido durante ocho años seguidos. Hay además un agravante: en las noches en que el proceso no termina a tiempo, toda esa energía se gastó en una lista que no se pudo usar como se debía.
+**Dimensión ambiental.** El tiempo de procesamiento también implica consumo de energía. Según la extrapolación de la Parte 4, insertion sort necesitaría unas 5,7 horas de CPU cada madrugada para ordenar un lote aleatorio de 1.200.000 registros, mientras que merge sort tardaría unos 3 segundos. Como el proceso se ejecuta todas las noches, la diferencia acumulada es considerable: unas 2.080 horas de procesador al año con insertion sort frente a unos 20 minutos con merge sort, y la plataforma lleva ocho años funcionando así. Además, cuando el proceso no alcanza a terminar, parte de esa energía se consume sin obtener una lista que pueda utilizarse correctamente.
 
 **Dimensión ética.** Veo dos perjuicios concretos:
 
 1. *Un paciente de alto riesgo no recibe la llamada a tiempo.* Si la lista sale incompleta o sin ordenar, alguien con un índice cercano a 1000 puede quedar al final de la cola o fuera de la jornada. El costo lo asume **el paciente**: su valoración cardiovascular se retrasa sin que haya tenido forma de enterarse ni de reclamar.
 2. *Los cupos de valoración se los llevan pacientes de menor riesgo.* Las citas disponibles cada día son limitadas. Si la lista va desordenada, pacientes de riesgo bajo ocupan esos cupos y el de riesgo alto, cuando por fin lo llaman, encuentra la agenda llena. De nuevo el costo recae primero sobre **el paciente** más grave; la Secretaría también pierde, porque paga consultas que no se asignaron según la prioridad clínica que el programa promete.
 
-En los dos casos el costo cae sobre quien no tomó la decisión, mientras la responsabilidad recae en quienes sí la toman: el equipo técnico que mantiene el proceso y la Secretaría que decide si se corrige.
+En ambos casos, el problema termina afectando al paciente, que no fue quien tomó la decisión sobre el sistema. La responsabilidad de corregirlo corresponde al equipo técnico encargado del proceso y a la Secretaría, que debe decidir si se realiza el cambio.
 
-**El orden define la prioridad de llamada.** Por eso cualquier falla del ordenamiento se vuelve una falla de priorización clínica, y de ahí salen dos obligaciones que van más allá del tiempo. La primera es comprobar cada noche que la salida es correcta: que tenga el mismo número de registros que entraron y que cada índice sea mayor o igual que el siguiente, un chequeo lineal y barato. La segunda es no disfrazar un fallo: si el proceso no termina, el sistema debe avisarlo de forma explícita en lugar de entregar una lista parcial que parece válida. Quien llama sabiendo que la lista está incompleta puede empezar por los casos críticos conocidos; quien no lo sabe, no.
+**El orden define la prioridad de llamada.** Por esta razón, un error en el ordenamiento también puede afectar la prioridad con la que se contacta a los pacientes. Esto impone una obligación adicional, más allá del tiempo: garantizar que el orden sea verificable. Para eso se debe comprobar cada noche que la salida tenga la misma cantidad de registros que la entrada y que los índices estén realmente en orden descendente. Este chequeo es lineal y tiene un costo bajo. También es importante que, si el proceso no termina, el sistema lo reporte claramente en lugar de entregar una lista incompleta como si fuera válida.
 
 ## Parte 3 — Peor caso, mejor caso y caso promedio, demostrados en Python
 
@@ -64,7 +64,7 @@ Fijo un tamaño n y llamo **E(n)** al conjunto de todas las listas posibles de n
 
 Los tres se comparan siempre con n fijo: no tiene sentido llamar "peor" a una entrada comparándola con otra de distinto tamaño.
 
-**Para aprobar el paso a producción me basaría en el peor caso**, porque la ventana es un límite duro que se evalúa todas las noches, y Tamiza no escoge su entrada: el canal que la produce cambia sin previo aviso (una nueva migración desde el sistema legado traería otra vez datos invertidos). Un promedio que cabe en cuatro horas no impide que una noche concreta se pase; una cota de peor caso que cabe sí lo impide.
+**Para aprobar el paso a producción tendría en cuenta principalmente el peor caso**, porque las cuatro horas son un límite que se debe cumplir todas las noches. Además, Tamiza no controla cómo llega la información. Por ejemplo, una nueva migración desde el sistema legado podría generar nuevamente datos en orden inverso. Que el tiempo promedio esté dentro de las cuatro horas no garantiza que una noche determinada también lo esté.
 
 **Predicción:**
 
@@ -96,7 +96,7 @@ Valores que imprime `parte3_casos.py` (tiempo = mediana de 3 repeticiones):
 - **Mejor caso: B.** 10.700 comparaciones en n = 6.400, casi sobre el eje. El desglose cuadra con el código: el bloque ordenado aporta una comparación por elemento (6.271) y reacomodar los 128 registros finales entre ellos cuesta 4.426 (lo medí ordenando esa cola por separado). No baja al mínimo teórico de n − 1 = 6.399 porque la cola llega desordenada.
 - **Caso promedio: A.** 10.243.431 comparaciones contra las n(n−1)/4 = 10.238.400 esperadas para una permutación aleatoria, un 0,05 % de diferencia. En la gráfica, A queda más o menos a media altura de C.
 
-**Contraste con la predicción.** Se cumplió en los tres escenarios. Lo que subestimé fue la distancia de B: esperaba que fuera el mejor, pero no casi 1.900 veces por debajo de C. Hay un detalle que la escala lineal esconde: B tampoco crece de forma lineal. Al duplicar n de 3.200 a 6.400 sus comparaciones subieron 2,56 veces, porque la cola del 2 % crece con n y se ordena en tiempo cuadrático.
+**Contraste con la predicción.** Los resultados coincidieron con lo esperado en los tres escenarios. Lo que no esperaba era que la diferencia entre B y C fuera tan grande: en n = 6.400, B queda casi 1.900 veces por debajo de C. También se puede ver que B no crece de manera totalmente lineal. Al pasar de 3.200 a 6.400 elementos, sus comparaciones aumentaron 2,56 veces, debido al trabajo adicional que genera la cola del 2 %.
 
 ## Parte 4 — Complejidad de merge sort e insertion sort: cálculo y validación
 
@@ -155,7 +155,7 @@ Contraste con el método maestro: a = 2, b = 2, f(n) = Θ(n) y n^(log₂ 2) = n;
 14  return lista, comparaciones
 ```
 
-Sea t_i el número de comparaciones de elementos en la iteración i (1 ≤ t_i ≤ i) y s_i a los desplazamientos (s_i ≤ t_i).
+Sea t_i el número de comparaciones de elementos en la iteración i (1 ≤ t_i ≤ i) y s_i el número de desplazamientos (s_i ≤ t_i).
 
 | Líneas | Veces que se ejecutan |
 |---|---|
@@ -199,7 +199,7 @@ Valores que imprime `parte4_complejidad.py` (escenario A, mediana de 3 repeticio
 
 ![Gráfica: milisegundos según n, insertion sort frente a merge sort, escenario A](graficas/parte4_tiempo.png)
 
-- **Para Tamiza conviene merge sort.** En la gráfica, insertion sort se curva hacia arriba cada vez más rápido: pasa de 138,35 ms a 583,82 ms entre 3.200 y 6.400 registros (×4,22). Merge sort sube casi en línea recta y apenas se despega del eje: de 4,98 ms a 10,69 ms en el mismo tramo (×2,15). En n = 6.400 la brecha llega a 54,6 veces.
+- **Para Tamiza es más adecuado merge sort.** En la gráfica se observa que insertion sort aumenta mucho más rápido: pasa de 138,35 ms a 583,82 ms entre 3.200 y 6.400 registros (×4,22). Merge sort pasa de 4,98 ms a 10,69 ms en el mismo rango (×2,15). Para n = 6.400, la diferencia entre ambos llega a 54,6 veces.
 - **Coincide con 4.1.** Duplicar n en un algoritmo Θ(n²) multiplica el tiempo por 4; en uno Θ(n log n) lo multiplica por 2·log(2n)/log(n), que para n = 3.200 da ≈ 2,17. Medí 4,22 y 2,15. El conteo de comparaciones, independiente del hardware, confirma lo mismo: con 6.400 registros insertion sort hace 10.243.431 y merge sort 72.940, unas 140 veces menos.
 - **Tamaños pequeños.** En el rango de la guía merge sort ya gana desde n = 100 (0,11 contra 0,13 ms), así que la gráfica no muestra cruce. Para ubicarlo medí aparte n = 20 y n = 50, y ahí insertion sort fue más rápido (0,012 contra 0,029 ms y 0,060 contra 0,076 ms). Cada llamada recursiva de merge sort crea listas y marcos de función nuevos, un costo fijo que en listas muy cortas pesa más que su ventaja asintótica. El cruce queda entre 50 y 100 elementos, muy lejos del 1.200.000 de Tamiza.
 
@@ -208,9 +208,9 @@ Valores que imprime `parte4_complejidad.py` (escenario A, mediana de 3 repeticio
 **A:** Equipo de ingeniería — Secretaría de Salud departamental
 **Ref.:** Ordenamiento nocturno de la plataforma Tamiza y propuesta de cambio de servidor
 
-**Recomendación.** Implementar merge sort como único algoritmo de ordenamiento del proceso nocturno y no firmar, por ahora, la compra del servidor.
+**Recomendación.** Cambiar el algoritmo del proceso nocturno a merge sort y evaluar la compra del servidor después de comprobar el comportamiento del nuevo algoritmo con los datos reales.
 
-**Criterio.** Como el origen del lote puede variar de un día a otro y no conviene sostener una implementación por canal, el algoritmo debe elegirse por lo que garantiza en la peor entrada posible, no por cómo se comporta con la entrada de hoy. Merge sort corta la lista según su longitud y nunca según su contenido, así que su costo es Θ(n log n) en los tres escenarios. Insertion sort, en cambio, depende mucho del canal: en mis mediciones con n = 6.400 tardó 0,74 ms (lote casi ordenado) frente a 1.166,72 ms (lote invertido), según la tabla de la Parte 3. Una sola migración desde el sistema legado basta para pasar del mejor escenario al peor.
+**Criterio.** El lote puede cambiar de un día a otro, por lo que no sería conveniente elegir el algoritmo basándose únicamente en los datos de un día específico. Además, el equipo no quiere mantener una implementación distinta para cada canal, así que necesita un solo algoritmo que funcione bien con cualquiera de los tres. Merge sort depende principalmente del tamaño de la lista y mantiene una complejidad de Θ(n log n) en los tres escenarios. Insertion sort depende mucho más del orden de entrada. En mis pruebas con n = 6.400 pasó de 0,74 ms con un lote casi ordenado a 1.166,72 ms con uno invertido. Una nueva migración desde el sistema legado podría cambiar completamente el comportamiento del proceso.
 
 **¿Cabe en cuatro horas?** Los valores de la tabla son **estimaciones extrapoladas**, no mediciones. El lote más grande que ejecuté fue de 6.400 registros y 1.200.000 es 187,5 veces más grande. No usé regla de tres sino el crecimiento de cada algoritmo: con Θ(n²) el tiempo escala por 187,5² ≈ 35.156 y con Θ(n log n) por 187,5 × log(1.200.000)/log(6.400) ≈ 300. Supongo el mismo equipo y que las curvas conservan su forma.
 
@@ -220,9 +220,9 @@ Valores que imprime `parte4_complejidad.py` (escenario A, mediana de 3 repeticio
 | Insertion sort | C — inverso | 1.166,72 ms | ≈ 11 h 24 min | No |
 | Merge sort | A — aleatorio | 10,69 ms | ≈ 3 s | Sí, con amplio margen |
 
-Esto explica las tres fallas recientes del proceso.
+Estos resultados ayudan a explicar las tres fallas recientes del proceso.
 
-**Sobre la compra del servidor.** Con n = 6.400 y el escenario A (gráfica `parte4_tiempo.png`), merge sort fue 54,6 veces más rápido que insertion sort. Comprar hardware aporta un factor 2; cambiar el algoritmo aporta un factor que ya vale 54 con lotes pequeños y crece con el tamaño. Con la máquina nueva, insertion sort bajaría a unas 2 h 51 min con un lote aleatorio, pero seguiría necesitando unas 5 h 42 min con uno invertido: la ventana seguiría fallando justo en el caso que no se controla. Y como el trabajo crece al cuadrado, cualquier ampliación del programa vuelve a consumir ese margen. El contrato atacaría el síntoma de este trimestre, no la causa.
+**Sobre la compra del servidor.** Con n = 6.400 y el escenario A (gráfica `parte4_tiempo.png`), merge sort fue 54,6 veces más rápido que insertion sort. Comprar un equipo más rápido podría reducir los tiempos, pero no cambia la complejidad del algoritmo. Incluso suponiendo que el nuevo servidor sea el doble de rápido, insertion sort todavía tardaría unas 2 h 51 min con un lote aleatorio y unas 5 h 42 min con uno invertido. En este último caso seguiría superando las cuatro horas. Además, como el trabajo de insertion sort crece cuadráticamente, el problema volvería a aparecer al aumentar el tamaño de los datos. Por eso no recomiendo la compra como solución al problema.
 
 **Consideraciones distintas del tiempo.**
 
