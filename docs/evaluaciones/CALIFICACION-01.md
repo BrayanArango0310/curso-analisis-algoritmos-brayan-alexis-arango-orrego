@@ -47,7 +47,7 @@ Excelente trabajo: un informe completo, con datos propios y bien respaldado por 
 **Lo que puede mejorar:**
 - `generar_casi_ordenado` usa `sort` de Python para armar la parte ordenada. Es mejor construirla sin esa función para respetar la restricción de no usar ordenamientos de la librería.
 - Algunas funciones de los scripts (`generar_lote`, `medir`, `correr_experimento`) no tienen todos los *type hints*, y sus *docstrings* no siguen el formato Google (sin Args ni Returns).
-- Los cuatro archivos `.py` terminan sin salto de línea final, y `RANGO_MAXIMO` en `datos.py` no se usa.
+- `RANGO_MAXIMO` en `datos.py` no se usa.
 
 ## 4. Calidad del análisis de las gráficas (19 / 20)
 **Lo que hizo bien:**
@@ -71,6 +71,6 @@ Sí. Los dos algoritmos ordenan bien en mis pruebas y los dos scripts corren sin
 ## Para el próximo laboratorio
 - Arme los datos de prueba sin usar funciones de ordenamiento de Python.
 - Ponga *type hints* y *docstrings* completos (Args y Returns) en todas las funciones, incluidas las auxiliares.
-- Termine los archivos con un salto de línea y quite el código que no se usa.
+- Quite el código que no se usa.
 - Cierre el análisis ambiental con una estimación de energía, no solo de horas de CPU.
 - Considere escala logarítmica en las gráficas cuando una curva domina a las demás.
