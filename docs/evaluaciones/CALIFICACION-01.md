@@ -66,7 +66,7 @@ Excelente trabajo: un informe completo, con datos propios y bien respaldado por 
 - Tiene commits descriptivos que muestran el avance del laboratorio.
 
 ## ¿El código funciona?
-Sí. Los dos algoritmos ordenan bien en mis pruebas y los dos scripts corren sin errores y generan las gráficas. Los comparaciones coinciden con las de su informe; los tiempos varían un poco según el equipo, como usted lo advierte.
+Sí. Los dos algoritmos ordenan bien y los dos scripts corren sin errores y generan las gráficas. Los comparaciones coinciden con las de su informe; los tiempos varían un poco según el equipo, como usted lo advierte.
 
 ## Para el próximo laboratorio
 - Arme los datos de prueba sin usar funciones de ordenamiento de Python.
